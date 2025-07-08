@@ -20,6 +20,14 @@ let fragmentShader = '';
 async function init() {
     console.log('Inicializando projeto Three.js...');
     
+    // Verificar se Three.js foi carregado
+    if (typeof THREE === 'undefined') {
+        console.error('Three.js não foi carregado!');
+        return;
+    }
+    
+    console.log('Three.js carregado com sucesso, versão:', THREE.REVISION);
+    
     // Carregar shaders
     await loadShaders();
     
@@ -53,50 +61,71 @@ async function init() {
 // ========================================
 
 async function loadShaders() {
+    console.log('Carregando shaders...');
+    
+    // Primeiro definir shaders fallback
+    const fallbackVertexShader = `
+        varying vec2 vUv;
+        varying vec3 vPosition;
+        uniform float time;
+        
+        void main() {
+            vUv = uv;
+            vPosition = position;
+            vec3 newPosition = position;
+            newPosition.z += sin(position.x * 10.0 + time) * 0.1;
+            newPosition.z += cos(position.y * 10.0 + time) * 0.1;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+        }
+    `;
+    
+    const fallbackFragmentShader = `
+        precision mediump float;
+        uniform float time;
+        varying vec2 vUv;
+        varying vec3 vPosition;
+        
+        void main() {
+            float r = sin(vPosition.x * 5.0 + time) * 0.5 + 0.5;
+            float g = cos(vPosition.y * 5.0 + time) * 0.5 + 0.5;
+            float b = sin(vPosition.z * 5.0 + time * 2.0) * 0.5 + 0.5;
+            
+            float pattern = sin(vUv.x * 20.0 + time) * cos(vUv.y * 20.0 + time);
+            vec3 finalColor = vec3(r, g, b) * (0.7 + pattern * 0.3);
+            
+            gl_FragColor = vec4(finalColor, 1.0);
+        }
+    `;
+
     try {
+        console.log('Tentando carregar shaders externos...');
+        
         // Carregar vertex shader
         const vertexResponse = await fetch('shaders/custom-vertex.glsl');
-        vertexShader = await vertexResponse.text();
+        if (vertexResponse.ok) {
+            vertexShader = await vertexResponse.text();
+            console.log('Vertex shader carregado com sucesso');
+        } else {
+            throw new Error('Falha ao carregar vertex shader');
+        }
         
         // Carregar fragment shader
         const fragmentResponse = await fetch('shaders/custom-fragment.glsl');
-        fragmentShader = await fragmentResponse.text();
+        if (fragmentResponse.ok) {
+            fragmentShader = await fragmentResponse.text();
+            console.log('Fragment shader carregado com sucesso');
+        } else {
+            throw new Error('Falha ao carregar fragment shader');
+        }
         
-        console.log('Shaders carregados com sucesso');
+        console.log('Shaders externos carregados com sucesso');
     } catch (error) {
-        console.error('Erro ao carregar shaders:', error);
-        // Fallback para shaders inline
-        vertexShader = `
-            attribute vec3 position;
-            attribute vec2 uv;
-            uniform mat4 projectionMatrix;
-            uniform mat4 modelViewMatrix;
-            uniform float time;
-            varying vec2 vUv;
-            varying vec3 vPosition;
-            
-            void main() {
-                vUv = uv;
-                vPosition = position;
-                vec3 newPosition = position;
-                newPosition.z += sin(position.x * 10.0 + time) * 0.1;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
-            }
-        `;
+        console.warn('Erro ao carregar shaders externos:', error.message);
+        console.log('Usando shaders fallback...');
         
-        fragmentShader = `
-            precision mediump float;
-            uniform float time;
-            varying vec2 vUv;
-            varying vec3 vPosition;
-            
-            void main() {
-                float r = sin(vPosition.x * 5.0 + time) * 0.5 + 0.5;
-                float g = cos(vPosition.y * 5.0 + time) * 0.5 + 0.5;
-                float b = sin(vPosition.z * 5.0 + time * 2.0) * 0.5 + 0.5;
-                gl_FragColor = vec4(r, g, b, 1.0);
-            }
-        `;
+        // Usar shaders fallback
+        vertexShader = fallbackVertexShader;
+        fragmentShader = fallbackFragmentShader;
     }
 }
 
@@ -105,6 +134,7 @@ async function loadShaders() {
 // ========================================
 
 function createScene() {
+    console.log('Criando cena...');
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a1a); // Fundo cinza escuro
     
@@ -115,6 +145,8 @@ function createScene() {
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(10, 10, 5);
     scene.add(directionalLight);
+    
+    console.log('Cena criada com sucesso');
 }
 
 // ========================================
@@ -122,6 +154,7 @@ function createScene() {
 // ========================================
 
 function createCameras() {
+    console.log('Criando câmeras...');
     const aspect = window.innerWidth / window.innerHeight;
     
     // Câmera perspectiva
@@ -144,6 +177,8 @@ function createCameras() {
     
     // Câmera atual (inicia com perspectiva)
     currentCamera = perspectiveCamera;
+    
+    console.log('Câmeras criadas com sucesso');
 }
 
 // ========================================
@@ -151,6 +186,7 @@ function createCameras() {
 // ========================================
 
 function createRenderer() {
+    console.log('Criando renderer...');
     renderer = new THREE.WebGLRenderer({ 
         antialias: true,
         alpha: true 
@@ -161,6 +197,8 @@ function createRenderer() {
     // Adicionar canvas ao DOM
     const container = document.getElementById('canvas-container');
     container.appendChild(renderer.domElement);
+    
+    console.log('Renderer criado com sucesso');
 }
 
 // ========================================
@@ -168,6 +206,8 @@ function createRenderer() {
 // ========================================
 
 function createObjects() {
+    console.log('Criando objetos 3D...');
+    
     // 1. CUBO COM SHADER CUSTOMIZADO
     createCubeWithCustomShader();
     
@@ -176,67 +216,113 @@ function createObjects() {
     
     // 3. PLANO COM TEXTURA XADREZ
     createPlaneWithCheckerboard();
+    
+    console.log('Todos os objetos 3D criados com sucesso');
 }
 
 function createCubeWithCustomShader() {
-    // Geometria do cubo
-    const geometry = new THREE.BoxGeometry(2, 2, 2);
+    console.log('Criando cubo com shader customizado...');
     
-    // Material com shader customizado
-    customShaderMaterial = new THREE.RawShaderMaterial({
-        vertexShader: vertexShader,
-        fragmentShader: fragmentShader,
-        uniforms: {
-            time: { value: 0.0 },
-            projectionMatrix: { value: new THREE.Matrix4() },
-            modelViewMatrix: { value: new THREE.Matrix4() }
-        }
-    });
-    
-    // Criar cubo
-    cube = new THREE.Mesh(geometry, customShaderMaterial);
-    cube.position.set(-3, 0, 0);
-    cube.scale.set(1.2, 1.2, 1.2);
-    scene.add(cube);
+    try {
+        // Geometria do cubo
+        const geometry = new THREE.BoxGeometry(2, 2, 2);
+        console.log('Geometria do cubo criada');
+        
+        // Material com shader customizado (usando ShaderMaterial em vez de RawShaderMaterial)
+        customShaderMaterial = new THREE.ShaderMaterial({
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            uniforms: {
+                time: { value: 0.0 }
+            }
+        });
+        console.log('Material shader criado');
+        
+        // Criar cubo
+        cube = new THREE.Mesh(geometry, customShaderMaterial);
+        cube.position.set(-3, 0, 0);
+        cube.scale.set(1.2, 1.2, 1.2);
+        scene.add(cube);
+        
+        console.log('Cubo criado com sucesso! Posição:', cube.position);
+    } catch (error) {
+        console.error('Erro ao criar cubo com shader:', error);
+        
+        // Fallback: criar cubo com material básico
+        console.log('Criando cubo com material básico como fallback...');
+        const geometry = new THREE.BoxGeometry(2, 2, 2);
+        const material = new THREE.MeshLambertMaterial({ color: 0xff6b6b });
+        cube = new THREE.Mesh(geometry, material);
+        cube.position.set(-3, 0, 0);
+        cube.scale.set(1.2, 1.2, 1.2);
+        scene.add(cube);
+        console.log('Cubo fallback criado com sucesso!');
+    }
 }
 
 function createSphereWithTexture() {
-    // Geometria da esfera
-    const geometry = new THREE.SphereGeometry(1.5, 32, 32);
+    console.log('Criando esfera...');
     
-    // Criar textura gradiente
-    const canvas = createGradientTexture(256, 256);
-    const texture = new THREE.CanvasTexture(canvas);
-    
-    // Material com textura
-    const material = new THREE.MeshLambertMaterial({ map: texture });
-    
-    // Criar esfera
-    sphere = new THREE.Mesh(geometry, material);
-    sphere.position.set(3, 0, 0);
-    sphere.scale.set(1.0, 1.0, 1.0);
-    scene.add(sphere);
+    try {
+        // Geometria da esfera
+        const geometry = new THREE.SphereGeometry(1.5, 32, 32);
+        
+        // Criar textura gradiente
+        if (typeof createGradientTexture === 'function') {
+            const canvas = createGradientTexture(256, 256);
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.MeshLambertMaterial({ map: texture });
+            
+            // Criar esfera
+            sphere = new THREE.Mesh(geometry, material);
+        } else {
+            // Fallback sem textura
+            const material = new THREE.MeshLambertMaterial({ color: 0x4ecdc4 });
+            sphere = new THREE.Mesh(geometry, material);
+        }
+        
+        sphere.position.set(3, 0, 0);
+        sphere.scale.set(1.0, 1.0, 1.0);
+        scene.add(sphere);
+        
+        console.log('Esfera criada com sucesso');
+    } catch (error) {
+        console.error('Erro ao criar esfera:', error);
+    }
 }
 
 function createPlaneWithCheckerboard() {
-    // Geometria do plano
-    const geometry = new THREE.PlaneGeometry(32, 32);
+    console.log('Criando plano...');
     
-    // Criar textura xadrez
-    const canvas = createCheckerboardTexture(512, 512);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(2, 2);
-    
-    // Material com textura
-    const material = new THREE.MeshLambertMaterial({ map: texture });
-    
-    // Criar plano
-    plane = new THREE.Mesh(geometry, material);
-    plane.rotation.x = -Math.PI / 2;
-    plane.position.set(0, -2, 0);
-    scene.add(plane);
+    try {
+        // Geometria do plano
+        const geometry = new THREE.PlaneGeometry(32, 32);
+        
+        // Criar textura xadrez
+        if (typeof createCheckerboardTexture === 'function') {
+            const canvas = createCheckerboardTexture(512, 512);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(2, 2);
+            const material = new THREE.MeshLambertMaterial({ map: texture });
+            
+            // Criar plano
+            plane = new THREE.Mesh(geometry, material);
+        } else {
+            // Fallback sem textura
+            const material = new THREE.MeshLambertMaterial({ color: 0x888888 });
+            plane = new THREE.Mesh(geometry, material);
+        }
+        
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.set(0, -2, 0);
+        scene.add(plane);
+        
+        console.log('Plano criado com sucesso');
+    } catch (error) {
+        console.error('Erro ao criar plano:', error);
+    }
 }
 
 // ========================================
@@ -244,13 +330,30 @@ function createPlaneWithCheckerboard() {
 // ========================================
 
 function setupControls() {
-    controls = new THREE.OrbitControls(currentCamera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.screenSpacePanning = false;
-    controls.minDistance = 3;
-    controls.maxDistance = 50;
-    controls.maxPolarAngle = Math.PI / 2;
+    console.log('Configurando controles...');
+    
+    try {
+        // Verificar se OrbitControls está disponível
+        if (typeof THREE.OrbitControls !== 'undefined') {
+            controls = new THREE.OrbitControls(currentCamera, renderer.domElement);
+        } else if (typeof OrbitControls !== 'undefined') {
+            controls = new OrbitControls(currentCamera, renderer.domElement);
+        } else {
+            console.warn('OrbitControls não disponível');
+            return;
+        }
+        
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = false;
+        controls.minDistance = 3;
+        controls.maxDistance = 50;
+        controls.maxPolarAngle = Math.PI / 2;
+        
+        console.log('Controles configurados com sucesso');
+    } catch (error) {
+        console.error('Erro ao configurar controles:', error);
+    }
 }
 
 // ========================================
@@ -258,11 +361,15 @@ function setupControls() {
 // ========================================
 
 function setupEventListeners() {
+    console.log('Configurando event listeners...');
+    
     // Redimensionamento da janela
     window.addEventListener('resize', onWindowResize);
     
     // Troca de câmera com tecla C
     window.addEventListener('keydown', onKeyDown);
+    
+    console.log('Event listeners configurados');
 }
 
 function onWindowResize() {
@@ -302,8 +409,10 @@ function toggleCamera() {
     }
     
     // Atualizar controles
-    controls.object = currentCamera;
-    controls.update();
+    if (controls) {
+        controls.object = currentCamera;
+        controls.update();
+    }
 }
 
 // ========================================
@@ -319,7 +428,9 @@ function animate() {
     updateAnimations(elapsedTime);
     
     // Atualizar controles
-    controls.update();
+    if (controls) {
+        controls.update();
+    }
     
     // Renderizar cena
     renderer.render(scene, currentCamera);
@@ -331,8 +442,8 @@ function updateAnimations(time) {
         cube.rotation.x = time * 0.5;
         cube.rotation.y = time * 0.7;
         
-        // Atualizar uniform do shader
-        if (customShaderMaterial) {
+        // Atualizar uniform do shader se disponível
+        if (customShaderMaterial && customShaderMaterial.uniforms && customShaderMaterial.uniforms.time) {
             customShaderMaterial.uniforms.time.value = time;
         }
     }

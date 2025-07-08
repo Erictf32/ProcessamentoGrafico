@@ -1,11 +1,5 @@
 // Vertex Shader Customizado
-// Atributos de entrada
-attribute vec3 position;
-attribute vec2 uv;
-
 // Uniforms
-uniform mat4 projectionMatrix;
-uniform mat4 modelViewMatrix;
 uniform float time;
 
 // Variáveis para passar ao fragment shader
