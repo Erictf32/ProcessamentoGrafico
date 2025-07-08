@@ -187,10 +187,9 @@ function createCubeWithCustomShader() {
         vertexShader: vertexShader,
         fragmentShader: fragmentShader,
         uniforms: {
-            time: { value: 0.0 },
-            projectionMatrix: { value: new THREE.Matrix4() },
-            modelViewMatrix: { value: new THREE.Matrix4() }
-        }
+            time: { value: 0.0 }
+        },
+        side: THREE.DoubleSide
     });
     
     // Criar cubo
